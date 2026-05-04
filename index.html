@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Dictionary Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      background: #0f0f13;
+      color: #f0eeff;
+      font-family: 'DM Sans', sans-serif;
+      padding: 20px;
+    }
+
+    h1 {
+      font-family: 'Syne';
+      margin-bottom: 20px;
+    }
+
+    .card {
+      background: #17171f;
+      border: 1px solid #2a2a38;
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    input, button {
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+      margin-right: 10px;
+    }
+
+    input {
+      background: #1e1e2a;
+      color: white;
+    }
+
+    button {
+      background: #7c5cfc;
+      color: white;
+      cursor: pointer;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+
+    th, td {
+      padding: 10px;
+      border-bottom: 1px solid #2a2a38;
+    }
+  </style>
+
+</head>
+
+<body>
+
+<h1>📚 Dictionary API</h1>
+
+<div class="card">
+  <h3>➕ Добавить слово</h3>
+  <input id="en" placeholder="English">
+  <input id="ru" placeholder="Russian">
+  <input id="sentenceEn" placeholder="Sentence EN">
+  <input id="sentenceRu" placeholder="Sentence RU">
+  <button onclick="addWord()">Сохранить</button>
+</div>
+
+<div class="card">
+  <h3>🔍 Найти слово</h3>
+  <input id="search" placeholder="Введите слово">
+  <button onclick="findWord()">Найти</button>
+  <div id="result"></div>
+</div>
+
+<div class="card">
+  <h3>📋 Все слова</h3>
+  <button onclick="loadWords()">Загрузить</button>
+
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>English</th>
+        <th>Russian</th>
+      </tr>
+    </thead>
+    <tbody id="table"></tbody>
+  </table>
+</div>
+
+<script>
+const BASE_URL = "https://your-backend.onrender.com/api/v1/words"; 
+// 👆 ПОТОМ ЗАМЕНИШЬ НА СВОЙ
+
+async function loadWords() {
+  const res = await fetch(BASE_URL + "/all");
+  const data = await res.json();
+
+  const table = document.getElementById("table");
+  table.innerHTML = "";
+
+  data.forEach(w => {
+    table.innerHTML += `
+      <tr>
+        <td>${w.id}</td>
+        <td>${w.english}</td>
+        <td>${w.russian}</td>
+      </tr>
+    `;
+  });
+}
+
+async function addWord() {
+  const word = {
+    english: document.getElementById("en").value,
+    russian: document.getElementById("ru").value,
+    sentenceEnglish: document.getElementById("sentenceEn").value,
+    sentenceRussian: document.getElementById("sentenceRu").value
+  };
+
+  await fetch(BASE_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(word)
+  });
+
+  alert("Сохранено!");
+  loadWords();
+}
+
+async function findWord() {
+  const value = document.getElementById("search").value;
+
+  const res = await fetch(BASE_URL + "?english=" + value);
+  const w = await res.json();
+
+  document.getElementById("result").innerHTML = `
+    <p>${w.english} - ${w.russian}</p>
+  `;
+}
+</script>
+
+</body>
+</html>
