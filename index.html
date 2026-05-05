@@ -123,17 +123,35 @@
 
         function setLoading(state) {
             loader.style.display = state ? 'block' : 'none';
-            tbody.innerHTML = state ? '<tr><td colspan="7">Загрузка данных...</td></tr>' : '';
+            if (state) tbody.innerHTML = '<tr><td colspan="7">Загрузка данных...</td></tr>';
         }
 
         async function fetchWords(endpoint = '/all') {
             setLoading(true);
             try {
-                const res = await fetch(`${BASE_URL}${endpoint}`);
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const data = await res.json();
-                renderTable(Array.isArray(data) ? data : [data]);
+                const res = await fetch(`${BASE_URL}${endpoint}`, {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' },
+                    mode: 'cors'
+                });
+                
+                if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+                
+                const rawData = await res.json();
+                console.log('📥 API Response:', rawData); // 🔍 Для отладки в консоли
+
+                // Гибкий парсинг: ожидаем массив, но обрабатываем обёртки
+                let words = [];
+                if (Array.isArray(rawData)) {
+                    words = rawData;
+                } else if (rawData && typeof rawData === 'object') {
+                    words = rawData.data || rawData.content || rawData.words || rawData.results || [rawData];
+                    if (!Array.isArray(words)) words = [];
+                }
+
+                renderTable(words);
             } catch (err) {
+                console.error('❌ Fetch Error:', err);
                 showMsg(`Ошибка загрузки: ${err.message}`, 'error');
                 tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:red;">Нет данных или ошибка сервера</td></tr>';
             } finally {
@@ -143,32 +161,37 @@
 
         function renderTable(words) {
             tbody.innerHTML = '';
-            if (!words.length) {
-                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Слова не найдены</td></tr>';
+            if (!words || words.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Список пуст</td></tr>';
                 return;
             }
+
             words.forEach(w => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${w.id}</td>
-                    <td>${escapeHtml(w.english)}</td>
-                    <td>${escapeHtml(w.russian)}</td>
-                    <td>${escapeHtml(w.englishExample) || '-'}</td>
-                    <td>${escapeHtml(w.russianExample) || '-'}</td>
-                    <td><span style="background:#e9ecef; padding:2px 6px; border-radius:4px; font-size:0.8rem;">${w.level || '-'}</span></td>
-                    <td class="actions">
-                        <button class="btn-secondary" onclick="editWord(${w.id})">✏️</button>
-                        <button class="btn-danger" onclick="deleteWord(${w.id})">🗑️</button>
-                    </td>
-                `;
-                tbody.appendChild(tr);
+                try {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${w.id ?? '-'}</td>
+                        <td>${escapeHtml(w.english)}</td>
+                        <td>${escapeHtml(w.russian)}</td>
+                        <td>${escapeHtml(w.englishExample) || '-'}</td>
+                        <td>${escapeHtml(w.russianExample) || '-'}</td>
+                        <td><span style="background:#e9ecef; padding:2px 6px; border-radius:4px; font-size:0.8rem;">${w.level || '-'}</span></td>
+                        <td class="actions">
+                            <button class="btn-secondary" onclick="editWord(${w.id})">✏️</button>
+                            <button class="btn-danger" onclick="deleteWord(${w.id})">🗑️</button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                } catch (e) {
+                    console.warn('⚠️ Ошибка рендера строки:', e, w);
+                }
             });
         }
 
         function escapeHtml(text) {
-            if (!text) return '';
+            if (text == null || text === undefined) return '';
             const div = document.createElement('div');
-            div.textContent = text;
+            div.textContent = String(text);
             return div.innerHTML;
         }
 
@@ -185,20 +208,22 @@
 
         window.editWord = async function(id) {
             try {
-                const res = await fetch(`${BASE_URL}/${id}`);
-                if (!res.ok) throw new Error('Не удалось загрузить слово');
+                const res = await fetch(`${BASE_URL}/${id}`, { headers: { 'Accept': 'application/json' } });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const w = await res.json();
+                
                 document.getElementById('wordId').value = w.id;
                 document.getElementById('english').value = w.english || '';
                 document.getElementById('russian').value = w.russian || '';
                 document.getElementById('englishExample').value = w.englishExample || '';
                 document.getElementById('russianExample').value = w.russianExample || '';
                 document.getElementById('level').value = w.level || 'A1';
+                
                 document.getElementById('cancelBtn').style.display = 'inline-block';
                 document.getElementById('saveBtn').textContent = '💾 Обновить слово';
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             } catch (err) {
-                showMsg(err.message, 'error');
+                showMsg(`Не удалось загрузить слово: ${err.message}`, 'error');
             }
         };
 
@@ -238,7 +263,10 @@
                     headers: { 'Content-Type': 'application/json', 'Accept': '*/*' },
                     body: JSON.stringify(payload)
                 });
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                if (!res.ok) {
+                    const errText = await res.text();
+                    throw new Error(`HTTP ${res.status}: ${errText}`);
+                }
                 showMsg(isUpdate ? 'Слово обновлено' : 'Слово добавлено');
                 clearForm();
                 fetchWords();
@@ -256,7 +284,7 @@
         document.getElementById('loadAllBtn').addEventListener('click', () => fetchWords());
         document.getElementById('cancelBtn').addEventListener('click', clearForm);
 
-        // Загрузка при старте
+        // Автозагрузка при старте
         fetchWords();
     </script>
 </body>
